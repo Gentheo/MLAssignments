@@ -1,0 +1,118 @@
+---
+title: "Assignmentw4-TB"
+author: "Thomas-Trey-Barnes"
+date: "7/15/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Step-1: Load Data and Libaries
+
+```{r}
+library(ggplot2)
+library(lattice)
+library(knitr)
+library(caret)
+
+## Loading required package: lattice
+## Loading required package: ggplot2
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(rattle)
+library(RGtk2)
+library(corrplot)
+## corrplot 0.84 loaded
+# set the URL for the download
+UrlTrain <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+UrlTest  <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+# download the datasets and perform initial clean in one step
+training_data <- read.csv(UrlTrain, na.strings = c("NA", "#DIV/0!", ""))
+test_data <- read.csv(UrlTest, na.strings = c("NA", "#DIV/0!", ""))
+```
+
+## Data Preparation
+We first remove data that contains more than 95% of the observation to be NA, these are filtered out.
+
+```{r, echo=F}
+clnColumnIndex <- colSums(is.na(training_data))/nrow(training_data) < 0.95
+
+clean_training_data <- training_data[,clnColumnIndex]
+```
+
+We then verifying we have removed NA correctly
+```{r, echo=T}
+colSums(is.na(clean_training_data))/nrow(clean_training_data)
+```
+
+
+
+We also remove col1 to col7 because they are not relevent to the model
+```{r}
+clean_training_data <- clean_training_data[,-c(1:7)]
+clean_test_data <- test_data[,-c(1:7)]
+```
+
+The training and test data is then partitioned into the training set and cross validation set
+```{r,echo=FALSE}
+inTrainIndex <- createDataPartition(clean_training_data$classe, p=0.75)[[1]]
+training_training_data <- clean_training_data[inTrainIndex,]
+training_crossval_data <- clean_training_data[-inTrainIndex,]
+allNames <- names(clean_training_data)
+clean_test_data <- test_data[,allNames[1:52]]
+```
+Data is now ready to have algorithms applied
+
+## Machine Learning Algorithm - Decision Tree
+```{r}
+decisionTreeMod <- train(classe ~., method='rpart', data=training_training_data)
+```
+Predict with decision tree and display output and confusion matrix; result model is not ideal due to low accuracy 
+```{r,echo=T}
+decisionTreePrediction <- predict(decisionTreeMod, training_crossval_data)
+confusionMatrix(training_crossval_data$classe, decisionTreePrediction)
+```
+
+Plotting the decision tree for graphical display
+```{r,echo=T}
+rpart.plot(decisionTreeMod$finalModel)
+```
+
+## Machine Learning Algorithm - Random Forest
+```{r,echo=T}
+rfMod <- train(classe ~., method='rf', data=training_training_data, ntree=128)
+rfPrediction <- predict(rfMod, training_crossval_data)
+confusionMatrix(training_crossval_data$classe, rfPrediction)
+```
+Random Forest generated a much more accurate model therefore predictions are made using Random forest
+
+#Prediction
+```{r,echo=T}
+predict(rfMod,clean_test_data)
+```
+
+## Conculsion
+Previously we observed that the random forest algorithm outperformed the decision tree in relation to accuracy of the models. Random forest generating an accuracy of 99.25% vs. the decision tree's accuracy at <50%. It is the analyst recommendation that the random forest machine learning algorithm be used to make predictions of this particular data set. 
